@@ -1,12 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial_ble/flutter_bluetooth_serial_ble.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:serialble/common/trucate.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:serialble/main.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
@@ -22,7 +29,7 @@ class _Message {
   String text;
   DateTime date;
 
-  _Message(this.whom, this.text,this.date);
+  _Message(this.whom, this.text, this.date);
 }
 
 class _ChatPage extends State<ChatPage> {
@@ -93,8 +100,6 @@ class _ChatPage extends State<ChatPage> {
       return Row(
         children: <Widget>[
           Container(
-           
-                  
             // width: MediaQuery.sizeOf(context).width*0.9,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -102,22 +107,23 @@ class _ChatPage extends State<ChatPage> {
               children: [
                 // Text(DateFormat("HH:mm:ss:SSS").format(_message.date)+"\n",style:GoogleFonts.courierPrime(color: Colors.grey.shade400,fontSize: 12),),
                 Container(
-                  width: MediaQuery.sizeOf(context).width*0.9,
-             
+                  width: MediaQuery.sizeOf(context).width * 0.9,
                   child: Text(
-                   
-                   
-                    
                       (text) {
                         return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
                       }(_message.text.trim()),
-                      style: GoogleFonts.courierPrime(color:  _message.whom == clientID ? Colors.yellow : Colors.greenAccent,fontSize: 13,)),
+                      style: GoogleFonts.courierPrime(
+                        color: _message.whom == clientID
+                            ? Colors.yellow
+                            : Colors.greenAccent,
+                        fontSize: 13,
+                      )),
                 ),
               ],
             ),
             padding: EdgeInsets.all(1.0),
             // margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
-            
+
             decoration: BoxDecoration(
                 // color:
                 //     _message.whom == clientID ? Colors.blueAccent : Colors.grey,
@@ -131,17 +137,47 @@ class _ChatPage extends State<ChatPage> {
     }).toList();
 
     final serverName = widget.server.name ?? "Unknown";
+
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon:Icon(Icons.menu),onPressed: (){
-          
-        },),
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+          actions: [
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert),
+              onSelected: (dynamic result) async {
+                if (result == 'Excel') {
+                  List<List<dynamic>> data =
+                      messages.map((message) => [message.text]).toList();
+                  // var excelData =  parseCsv(data);
+                  await exportToExcel(data.toString());
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'Excel',
+                  child: Text('Export Excel'),
+                ),
+              ],
+            ),
+          ],
           title: (isConnecting
-              ? Text('Connecting chat to ' + serverName + '...')
+              ? Text(
+                  'Connecting Chat to ' + serverName + '...',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                )
               : isConnected
-                  ? Text('Live chat with ' + serverName)
-                  : Text('Chat log with ' + serverName))),
-                  backgroundColor: Colors.black,
+                  ? Text('Live Chat With ' + serverName,
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600))
+                  : Text('Chat Log With ' + serverName,
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600)))),
+      backgroundColor: Color(0xFF1D3646),
       body: SafeArea(
         child: Column(
           children: <Widget>[
@@ -156,10 +192,15 @@ class _ChatPage extends State<ChatPage> {
                 Flexible(
                   child: Container(
                     margin: const EdgeInsets.only(left: 16.0),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8)),
                     child: TextField(
-                      style:  TextStyle(fontSize: 15.0,color: Colors.grey.shade300),
+                      style: TextStyle(
+                          fontSize: 15.0, color: Colors.grey.shade300),
                       controller: textEditingController,
-                      
+                      cursorColor: Color(0xFF95A4C2),
                       decoration: InputDecoration.collapsed(
                         hintText: isConnecting
                             ? 'Wait until connected...'
@@ -174,11 +215,21 @@ class _ChatPage extends State<ChatPage> {
                 ),
                 Container(
                   margin: const EdgeInsets.all(8.0),
-                  child: IconButton(
-                      icon:  Icon(Icons.send,color: Colors.grey.shade200,),
-                      onPressed: isConnected
-                          ? () => _sendMessage(textEditingController.text)
-                          : null),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF2D558D)
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left:4.0),
+                    child: IconButton(
+                        icon: Icon(
+                          Icons.send,
+                          color: Colors.grey.shade200,size: 28,
+                        ),
+                        onPressed: isConnected
+                            ? () => _sendMessage(textEditingController.text)
+                            : null),
+                  ),
                 ),
               ],
             )
@@ -186,6 +237,55 @@ class _ChatPage extends State<ChatPage> {
         ),
       ),
     );
+  }
+
+  String cleanCsvData(String csvData) {
+    return csvData.replaceAll(RegExp(r'[\[\]]'), '');
+  }
+
+  List<List<String>> parseCsv(String csvData) {
+    List<List<String>> result = [];
+    List<String> rows = csvData.split('\n');
+
+    for (var row in rows) {
+      if (row.isNotEmpty) {
+        List<String> columns =
+            row.split(',').map((field) => field.trim()).toList();
+        result.add(columns);
+      }
+    }
+
+    return result;
+  }
+
+  Future<void> exportToExcel(String data) async {
+    try {
+      String cleanedCsvData = cleanCsvData(data);
+      List<List<String>> parsedData = parseCsv(cleanedCsvData);
+      // Get the Downloads directory
+      final directory =
+          Directory('/storage/emulated/0/Download'); // For Android
+      final path = '${directory.path}/log_data.xlsx';
+
+      var excel = Excel.createExcel();
+      Sheet sheet = excel['Sheet1'];
+
+      // Add rows to the sheet
+      for (var row in parsedData) {
+        sheet.appendRow(row);
+      }
+
+      var file = File(path);
+      await file.writeAsBytes(await excel.save()!);
+
+      log('File saved at $path');
+      Fluttertoast.showToast(
+        msg: "Successfully Downloaded",
+      );
+    } catch (e) {
+      Fluttertoast.showToast(msg: "e");
+      print('Error saving file: $e');
+    }
   }
 
   void _onDataReceived(Uint8List data) {
@@ -220,13 +320,12 @@ class _ChatPage extends State<ChatPage> {
       setState(() {
         messages.add(
           _Message(
-            1,
-            backspacesCounter > 0
-                ? _messageBuffer.substring(
-                    0, _messageBuffer.length - backspacesCounter)
-                : _messageBuffer + dataString.substring(0, index),
-                DateTime.now()
-          ),
+              1,
+              backspacesCounter > 0
+                  ? _messageBuffer.substring(
+                      0, _messageBuffer.length - backspacesCounter)
+                  : _messageBuffer + dataString.substring(0, index),
+              DateTime.now()),
         );
         _messageBuffer = dataString.substring(index);
       });
@@ -248,7 +347,7 @@ class _ChatPage extends State<ChatPage> {
         await connection!.output.allSent;
 
         setState(() {
-          messages.add(_Message(clientID, text,DateTime.now()));
+          messages.add(_Message(clientID, text, DateTime.now()));
         });
 
         Future.delayed(Duration(milliseconds: 333)).then((_) {

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:serialble/features/choosedevice/screen/choosedevice.dart';
 import 'package:serialble/features/home/screen/home_screen.dart';
 import 'package:serialble/theme/theme.dart';
-
-void main() {
+ late final status ;
+void main() async{
+   WidgetsFlutterBinding.ensureInitialized();
+  status = await Permission.storage.request();
   runApp(const MyApp());
 }
 
@@ -14,9 +17,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-
       title: 'Flutter Demo',
       theme: defaultTheme,
+      debugShowCheckedModeBanner: false,
       home: const SelectBondedDevicePage(checkAvailability: false,),
     );
   }

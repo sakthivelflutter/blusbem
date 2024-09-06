@@ -5,8 +5,6 @@ import 'package:flutter_bluetooth_serial_ble/flutter_bluetooth_serial_ble.dart';
 import 'package:serialble/features/chatpage/screen/chatscreen.dart';
 import 'package:serialble/features/choosedevice/model/blutoothentity.dart';
 
-
-
 class SelectBondedDevicePage extends StatefulWidget {
   /// If true, on page start there is performed discovery upon the bonded devices.
   /// Then, if they are not avaliable, they would be disabled from the selection.
@@ -119,18 +117,21 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
               onTap: () {
                 // Navigator.of(context).pop();
                 Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) {
-          return ChatPage(server: _device.device);
-        },
-      ),
-    );
+                  MaterialPageRoute(
+                    builder: (context) {
+                      return ChatPage(server: _device.device);
+                    },
+                  ),
+                );
               },
             ))
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text('Select device'),
+        title: Text(
+          'Select Device',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
         actions: <Widget>[
           _isDiscovering
               ? FittedBox(
@@ -149,6 +150,7 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
                 )
         ],
       ),
+      backgroundColor: Color(0xFFF4F5F7),
       body: ListView(children: list),
     );
   }
