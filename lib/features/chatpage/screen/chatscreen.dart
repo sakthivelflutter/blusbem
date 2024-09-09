@@ -12,8 +12,10 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:serialble/common/trucate.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:serialble/features/History/screen/history_screen.dart';
 import 'package:serialble/main.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:get_storage/get_storage.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
@@ -156,14 +158,32 @@ class _ChatPage extends State<ChatPage> {
                   // var excelData =  parseCsv(data);
                   await exportToExcel(data.toString());
                 }
+                 if (result == 'clear') {
+                messages.clear();
+                setState(() {
+                  
+                });
+                }
+                if (result == 'history') {
+               Navigator.push(context, MaterialPageRoute(builder: (context)=>HistoryScreen()));
+                }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                 const PopupMenuItem<String>(
                   value: 'Excel',
                   child: Text('Export Excel'),
                 ),
+                 const PopupMenuItem<String>(
+                  value: 'history',
+                  child: Text('History'),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'clear',
+                  child: Text('Clear'),
+                ),
               ],
             ),
+            
           ],
           title: (isConnecting
               ? Text(
@@ -183,6 +203,7 @@ class _ChatPage extends State<ChatPage> {
           children: <Widget>[
             Flexible(
               child: ListView(
+              
                   padding: const EdgeInsets.all(12.0),
                   controller: listScrollController,
                   children: list),
@@ -192,7 +213,7 @@ class _ChatPage extends State<ChatPage> {
                 Flexible(
                   child: Container(
                     margin: const EdgeInsets.only(left: 16.0),
-                    padding: EdgeInsets.all(12),
+                    padding: EdgeInsets.only(left: 12),
                     decoration: BoxDecoration(
                         color: Colors.grey[800],
                         borderRadius: BorderRadius.circular(8)),
@@ -201,7 +222,16 @@ class _ChatPage extends State<ChatPage> {
                           fontSize: 15.0, color: Colors.grey.shade300),
                       controller: textEditingController,
                       cursorColor: Color(0xFF95A4C2),
-                      decoration: InputDecoration.collapsed(
+                      
+                      decoration: InputDecoration(
+                        suffixIcon: InkWell(onTap: (){
+                          Navigator.push(context, MaterialPageRoute(builder: (contest)=>HistoryScreen()));
+                          
+                        },
+                        child: Icon(Icons.history,color: Colors.grey.shade300,),),
+                        border: InputBorder.none,
+                       
+                        
                         hintText: isConnecting
                             ? 'Wait until connected...'
                             : isConnected
@@ -209,6 +239,7 @@ class _ChatPage extends State<ChatPage> {
                                 : 'Chat got disconnected',
                         hintStyle: const TextStyle(color: Colors.grey),
                       ),
+                      
                       enabled: isConnected,
                     ),
                   ),
@@ -263,9 +294,7 @@ class _ChatPage extends State<ChatPage> {
       String cleanedCsvData = cleanCsvData(data);
       List<List<String>> parsedData = parseCsv(cleanedCsvData);
       // Get the Downloads directory
-      final directory =
-          Directory('/storage/emulated/0/Download'); // For Android
-      final path = '${directory.path}/log_data.xlsx';
+     
 
       var excel = Excel.createExcel();
       Sheet sheet = excel['Sheet1'];
@@ -274,13 +303,24 @@ class _ChatPage extends State<ChatPage> {
       for (var row in parsedData) {
         sheet.appendRow(row);
       }
-
+ final directory =
+          Directory('/storage/emulated/0/Download'); // For Android
+      String path = '${directory.path}/log_data.xlsx';
+   int filecount =1;
       var file = File(path);
-      await file.writeAsBytes(await excel.save()!);
+      while(await file.exists()){
+        path= '${directory.path}/log_data_$filecount.xlsx';
+        filecount++;
+        file = File(path);
+        print(filecount);
+        
+
+      }
+      await file.writeAsBytes( excel.save()!);
 
       log('File saved at $path');
       Fluttertoast.showToast(
-        msg: "Successfully Downloaded",
+        msg: "Successfully ${path.split("/").last} Downloaded",
       );
     } catch (e) {
       Fluttertoast.showToast(msg: "e");
@@ -339,6 +379,14 @@ class _ChatPage extends State<ChatPage> {
 
   void _sendMessage(String text) async {
     text = text.trim();
+    List listtext=GetStorage().read("history")??[];
+    listtext.add(text);
+   listtext= listtext.toSet().toList();
+    GetStorage().write("history", listtext);
+
+
+
+    
     textEditingController.clear();
 
     if (text.length > 0) {
